@@ -48,4 +48,4 @@ app.*.map.json
 .widget_preview/
 
 # plan
-daily_quest_plan.json
+daily_quest_plan.jsond  
