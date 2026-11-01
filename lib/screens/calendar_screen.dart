@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../theme/quest_theme.dart';
 import '../widgets/quest_widgets.dart';
 import '../widgets/month_picker_dialog.dart';
+import '../widgets/calendar_day_cell.dart';
 
 import '../models/daily_job.dart';
 import '../services/database_service.dart';
@@ -149,57 +150,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     DateTime day, {
     bool selected = false,
     bool today = false,
-  }) {
-    final progress = _monthlyProgress[_dateKey(day)];
-    return Semantics(
-      label:
-          '${day.month}월 ${day.day}일${progress == null ? ', 기록 없음' : ', 달성률 ${(progress * 100).round()}%'}',
-      selected: selected,
-      excludeSemantics: true,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: selected
-              ? QuestTheme.purple
-              : progress == 1
-              ? const Color(0xFF293826)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          border: today ? Border.all(color: QuestTheme.purple) : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${day.day}',
-              style: TextStyle(
-                color: selected ? const Color(0xFF26134E) : null,
-                fontWeight: selected || today
-                    ? FontWeight.w800
-                    : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 3),
-            if (progress != null)
-              Text(
-                '${(progress * 100).round()}%',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: selected
-                      ? const Color(0xFF26134E)
-                      : progress == 1
-                      ? QuestTheme.lime
-                      : QuestTheme.purple,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  }) => CalendarDayCell(
+    day: day,
+    progress: _monthlyProgress[_dateKey(day)],
+    selected: selected,
+    today: today || isSameDay(day, DateTime.now()),
+  );
   @override
   Widget build(BuildContext context) {
     final completed = _selectedJobs.where((job) => job.isCompleted).length;
@@ -231,7 +187,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         calendarFormat: CalendarFormat.month,
                         availableGestures: AvailableGestures.horizontalSwipe,
                         startingDayOfWeek: StartingDayOfWeek.sunday,
-                        rowHeight: 62 * scale.clamp(1.0, 2.0),
+                        rowHeight: 72 * scale.clamp(1.0, 2.0),
                         daysOfWeekHeight: 28 * scale.clamp(1.0, 2.0),
                         headerStyle: const HeaderStyle(
                           formatButtonVisible: false,
@@ -309,21 +265,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       alignment: WrapAlignment.center,
                       children: [
                         Text(
-                          '숫자는 그날의 달성률',
+                          '숫자 채움 = 달성률',
                           style: TextStyle(
                             color: QuestTheme.muted,
                             fontSize: 11,
                           ),
                         ),
                         Text(
-                          '● 100% 달성',
+                          '★ 100% 달성',
                           style: TextStyle(
                             color: QuestTheme.lime,
                             fontSize: 11,
                           ),
                         ),
                         Text(
-                          '○ 오늘',
+                          '– 기록 없음',
                           style: TextStyle(
                             color: QuestTheme.purple,
                             fontSize: 11,

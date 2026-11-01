@@ -3,6 +3,7 @@ import 'package:daily_quest/screens/calendar_screen.dart';
 import 'package:daily_quest/services/database_service.dart';
 import 'package:daily_quest/theme/quest_theme.dart';
 import 'package:daily_quest/widgets/month_picker_dialog.dart';
+import 'package:daily_quest/widgets/calendar_day_cell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -35,8 +36,65 @@ class _CalendarDatabase extends DatabaseService {
   }
 }
 
+class _ProgressCalendarDatabase extends _CalendarDatabase {
+  @override
+  Future<Map<String, double>> getMonthlyProgress(DateTime month) async => {
+    '${month.year}-${month.month.toString().padLeft(2, '0')}-15': 0.5,
+    '${month.year}-${month.month.toString().padLeft(2, '0')}-16': 1.0,
+  };
+
+  @override
+  Future<List<DailyJob>> getDailyJobsForDate(DateTime date) async => [
+    for (var id = 1; id <= 2; id++)
+      DailyJob(
+        date: date.toIso8601String().substring(0, 10),
+        jobId: id,
+        jobName: '퀘스트 $id',
+        categoryName: '건강',
+        isCompleted: date.day == 16 || id == 1,
+      ),
+  ];
+}
+
 void main() {
   setUpAll(() => initializeDateFormatting('ko_KR'));
+
+  testWidgets('채움 날짜를 선택하면 상세에 정확한 달성률을 표시한다', (tester) async {
+    tester.view.physicalSize = const Size(390, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: QuestTheme.data,
+        home: Scaffold(
+          body: CalendarScreen(
+            refreshToken: 0,
+            databaseService: _ProgressCalendarDatabase(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final day in [15, 16]) {
+      final cell = find
+          .byWidgetPredicate(
+            (widget) => widget is CalendarDayCell && widget.day.day == day,
+          )
+          .hitTestable();
+      await tester.tap(cell);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<CalendarDayCell>(cell).progress,
+        day == 15 ? 0.5 : 1.0,
+      );
+      expect(
+        find.text(day == 15 ? '완료 1 / 2 · 달성률 50%' : '완료 2 / 2 · 달성률 100%'),
+        findsOneWidget,
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
 
   Future<void> chooseYear(WidgetTester tester, int year) async {
     await tester.tap(find.byKey(const ValueKey('month-picker-year')));
