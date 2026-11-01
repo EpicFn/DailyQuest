@@ -269,6 +269,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     children: [
                       TodayScreen(
                         jobs: todayJobs,
+                        categories: categories,
                         onToggleCompleted: toggleCompleted,
                         onManage: () => setState(() => selectedIndex = 2),
                       ),

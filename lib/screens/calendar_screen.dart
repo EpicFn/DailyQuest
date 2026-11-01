@@ -187,15 +187,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
           sliver: SliverList.list(
             children: [
-              Text(
-                '매일의 도전이 쌓이는 곳',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '작은 성취도 오래 기억할 수 있도록.',
-                style: TextStyle(color: QuestTheme.muted),
-              ),
               const SizedBox(height: 24),
               QuestSurface(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
