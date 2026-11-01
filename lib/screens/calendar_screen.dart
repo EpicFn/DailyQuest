@@ -28,6 +28,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
 
+  // 달력의 월 번호와 바깥 목록의 스크롤 픽셀이 같은 키로 저장되지 않도록 분리한다.
+  // 샘플 생성 등으로 화면이 재생성되면 이 저장소도 초기화되어 오늘부터 표시한다.
+  final _monthPageStorage = PageStorageBucket();
+
   Map<String, double> _monthlyProgress = {};
   List<DailyJob> _selectedJobs = [];
 
@@ -192,56 +196,60 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
                 child: Column(
                   children: [
-                    TableCalendar(
-                      locale: 'ko_KR',
-                      firstDay: DateTime(2020, 1, 1),
-                      lastDay: DateTime.now().add(const Duration(days: 365)),
-                      focusedDay: _focusedDay,
-                      selectedDayPredicate: (day) =>
-                          isSameDay(_selectedDay, day),
-                      onDaySelected: _onDaySelected,
-                      onPageChanged: _onPageChanged,
-                      calendarFormat: CalendarFormat.month,
-                      availableGestures: AvailableGestures.horizontalSwipe,
-                      startingDayOfWeek: StartingDayOfWeek.sunday,
-                      rowHeight: 62 * scale.clamp(1.0, 2.0),
-                      daysOfWeekHeight: 28 * scale.clamp(1.0, 2.0),
-                      headerStyle: const HeaderStyle(
-                        formatButtonVisible: false,
-                        titleCentered: true,
-                        titleTextStyle: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                    PageStorage(
+                      bucket: _monthPageStorage,
+                      child: TableCalendar(
+                        key: const PageStorageKey('calendar-month'),
+                        locale: 'ko_KR',
+                        firstDay: DateTime(2020, 1, 1),
+                        lastDay: DateTime.now().add(const Duration(days: 365)),
+                        focusedDay: _focusedDay,
+                        selectedDayPredicate: (day) =>
+                            isSameDay(_selectedDay, day),
+                        onDaySelected: _onDaySelected,
+                        onPageChanged: _onPageChanged,
+                        calendarFormat: CalendarFormat.month,
+                        availableGestures: AvailableGestures.horizontalSwipe,
+                        startingDayOfWeek: StartingDayOfWeek.sunday,
+                        rowHeight: 62 * scale.clamp(1.0, 2.0),
+                        daysOfWeekHeight: 28 * scale.clamp(1.0, 2.0),
+                        headerStyle: const HeaderStyle(
+                          formatButtonVisible: false,
+                          titleCentered: true,
+                          titleTextStyle: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          leftChevronIcon: Icon(
+                            Icons.chevron_left_rounded,
+                            color: QuestTheme.muted,
+                          ),
+                          rightChevronIcon: Icon(
+                            Icons.chevron_right_rounded,
+                            color: QuestTheme.muted,
+                          ),
                         ),
-                        leftChevronIcon: Icon(
-                          Icons.chevron_left_rounded,
-                          color: QuestTheme.muted,
+                        daysOfWeekStyle: const DaysOfWeekStyle(
+                          weekdayStyle: TextStyle(
+                            color: QuestTheme.muted,
+                            fontSize: 12,
+                          ),
+                          weekendStyle: TextStyle(
+                            color: QuestTheme.purple,
+                            fontSize: 12,
+                          ),
                         ),
-                        rightChevronIcon: Icon(
-                          Icons.chevron_right_rounded,
-                          color: QuestTheme.muted,
+                        calendarStyle: const CalendarStyle(
+                          outsideDaysVisible: false,
                         ),
-                      ),
-                      daysOfWeekStyle: const DaysOfWeekStyle(
-                        weekdayStyle: TextStyle(
-                          color: QuestTheme.muted,
-                          fontSize: 12,
+                        calendarBuilders: CalendarBuilders(
+                          defaultBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(day),
+                          todayBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(day, today: true),
+                          selectedBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(day, selected: true),
                         ),
-                        weekendStyle: TextStyle(
-                          color: QuestTheme.purple,
-                          fontSize: 12,
-                        ),
-                      ),
-                      calendarStyle: const CalendarStyle(
-                        outsideDaysVisible: false,
-                      ),
-                      calendarBuilders: CalendarBuilders(
-                        defaultBuilder: (context, day, focusedDay) =>
-                            _buildDayCell(day),
-                        todayBuilder: (context, day, focusedDay) =>
-                            _buildDayCell(day, today: true),
-                        selectedBuilder: (context, day, focusedDay) =>
-                            _buildDayCell(day, selected: true),
                       ),
                     ),
                     const SizedBox(height: 10),
