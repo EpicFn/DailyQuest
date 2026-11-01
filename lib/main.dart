@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/main_screen.dart';
+import 'theme/quest_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,10 +20,7 @@ class DailyQuestApp extends StatelessWidget {
     return MaterialApp(
       title: '데일리퀘스트',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
-      ),
+      theme: QuestTheme.data,
       home: const MainScreen(),
     );
   }

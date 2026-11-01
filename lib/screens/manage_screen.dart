@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/quest_job.dart';
 import '../models/category.dart';
 import '../widgets/job_tile.dart';
+import '../widgets/quest_widgets.dart';
+import '../theme/quest_theme.dart';
 
 class ManageScreen extends StatelessWidget {
   final List<QuestJob> jobs;
@@ -36,10 +38,7 @@ class ManageScreen extends StatelessWidget {
   // Job 추가 / 수정
   // --------------------
 
-  void showJobDialog(
-    BuildContext context, {
-    QuestJob? job,
-  }) {
+  void showJobDialog(BuildContext context, {QuestJob? job}) {
     String name = job?.name ?? '';
     int categoryId = job?.categoryId ?? categories.first.id;
 
@@ -49,9 +48,8 @@ class ManageScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(
-                job == null ? '퀘스트 추가' : '퀘스트 수정',
-              ),
+              scrollable: true,
+              title: Text(job == null ? '퀘스트 추가' : '퀘스트 수정'),
 
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -59,9 +57,7 @@ class ManageScreen extends StatelessWidget {
                   TextFormField(
                     initialValue: name,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      labelText: '퀘스트 이름',
-                    ),
+                    decoration: const InputDecoration(labelText: '퀘스트 이름'),
                     onChanged: (value) {
                       name = value;
                     },
@@ -70,14 +66,17 @@ class ManageScreen extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
                     initialValue: categoryId,
-                    decoration: const InputDecoration(
-                      labelText: '카테고리',
-                    ),
+                    decoration: const InputDecoration(labelText: '카테고리'),
                     items: categories.map((category) {
                       return DropdownMenuItem<int>(
                         value: category.id,
-                        child: Text(category.name),
+                        child: Text(
+                          category.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -108,11 +107,7 @@ class ManageScreen extends StatelessWidget {
                     if (job == null) {
                       onAddJob(value, categoryId);
                     } else {
-                      onUpdateJob(
-                        job.id,
-                        value,
-                        categoryId,
-                      );
+                      onUpdateJob(job.id, value, categoryId);
                     }
 
                     Navigator.pop(dialogContext);
@@ -131,28 +126,20 @@ class ManageScreen extends StatelessWidget {
   // Category 추가 / 수정
   // --------------------
 
-  void showCategoryDialog(
-    BuildContext context, {
-    QuestCategory? category,
-  }) {
+  void showCategoryDialog(BuildContext context, {QuestCategory? category}) {
     String name = category?.name ?? '';
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(
-            category == null
-                ? '카테고리 추가'
-                : '카테고리 수정',
-          ),
+          scrollable: true,
+          title: Text(category == null ? '카테고리 추가' : '카테고리 수정'),
 
           content: TextFormField(
             initialValue: name,
             autofocus: true,
-            decoration: const InputDecoration(
-              labelText: '카테고리 이름',
-            ),
+            decoration: const InputDecoration(labelText: '카테고리 이름'),
             onChanged: (value) {
               name = value;
             },
@@ -192,18 +179,14 @@ class ManageScreen extends StatelessWidget {
   // Job 삭제
   // --------------------
 
-  Future<void> confirmDeleteJob(
-    BuildContext context,
-    QuestJob job,
-  ) async {
+  Future<void> confirmDeleteJob(BuildContext context, QuestJob job) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          scrollable: true,
           title: const Text('퀘스트 삭제'),
-          content: Text(
-            '${job.name}을(를) 삭제하시겠습니까?',
-          ),
+          content: Text('${job.name}을(를) 삭제하시겠습니까?'),
           actions: [
             TextButton(
               onPressed: () {
@@ -239,6 +222,7 @@ class ManageScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          scrollable: true,
           title: const Text('카테고리 삭제'),
           content: const Text(
             '카테고리를 삭제하시겠습니까?\n'
@@ -287,98 +271,148 @@ class ManageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: ListView(
-        children: [
-          // Job 섹션
-          ListTile(
-            title: const Text(
-              '퀘스트',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+    final active = jobs.where((job) => job.isActive).length;
+    return ListView(
+      key: const PageStorageKey('manage'),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+      children: [
+        Text('나만의 퀘스트 만들기', style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: 8),
+        const Text(
+          '매일 반복하고 싶은 일을 모아 보세요.',
+          style: TextStyle(color: QuestTheme.muted),
+        ),
+        const SizedBox(height: 24),
+        QuestSurface(
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF38265F),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.tune_rounded, color: QuestTheme.purple),
               ),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => showJobDialog(context),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '진행 중인 퀘스트 $active개',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      '활성화한 퀘스트가 오늘 목록에 표시돼요.',
+                      style: TextStyle(color: QuestTheme.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-
-          if (jobs.isEmpty)
-            const ListTile(
-              title: Text('등록된 퀘스트가 없습니다.'),
-            ),
-
-          ...jobs.map((job) {
-            return JobTile(
+        ),
+        QuestSectionHeading(
+          title: '퀘스트 ${jobs.length}',
+          subtitle: '스위치로 오늘의 도전을 선택하세요.',
+          action: FilledButton.icon(
+            onPressed: categories.isEmpty ? null : () => showJobDialog(context),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('추가'),
+          ),
+        ),
+        if (jobs.isEmpty)
+          const QuestEmptyState(
+            title: '등록된 퀘스트가 없어요',
+            message: '물 한 잔, 책 한 쪽도 좋아요.\n위의 추가 버튼으로 시작해 보세요.',
+          ),
+        ...jobs.map(
+          (job) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: JobTile(
               key: ValueKey(job.id),
               job: job,
               categoryName: getCategoryName(job.categoryId),
-              onToggle: (value) {
-                onToggleJob(job.id, value);
-              },
-              onEdit: () {
-                showJobDialog(context, job: job);
-              },
-              onDelete: () {
-                confirmDeleteJob(context, job);
-              },
-            );
-          }),
-
-          const Divider(),
-
-          // Category 섹션
-          ListTile(
-            title: const Text(
-              '카테고리',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => showCategoryDialog(context),
+              onToggle: (value) => onToggleJob(job.id, value),
+              onEdit: () => showJobDialog(context, job: job),
+              onDelete: () => confirmDeleteJob(context, job),
             ),
           ),
-
-          ...categories.map((category) {
-            return ListTile(
-              title: Text(category.name),
-
-              trailing: category.isDefault
-                  ? const Text('기본')
-                  : PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          showCategoryDialog(
-                            context,
-                            category: category,
-                          );
-                        } else if (value == 'delete') {
-                          confirmDeleteCategory(
-                            context,
-                            category,
-                          );
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'edit',
-                          child: Text('수정'),
+        ),
+        QuestSectionHeading(
+          title: '카테고리',
+          subtitle: '나의 도전을 주제별로 정리해요.',
+          action: IconButton.filledTonal(
+            tooltip: '카테고리 추가',
+            onPressed: () => showCategoryDialog(context),
+            icon: const Icon(Icons.add),
+          ),
+        ),
+        QuestSurface(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            children: [
+              for (var index = 0; index < categories.length; index++) ...[
+                if (index > 0)
+                  const Divider(height: 1, indent: 56, endIndent: 16),
+                ListTile(
+                  leading: Icon(
+                    CategoryBadge.iconFor(categories[index].name),
+                    color: QuestTheme.purple,
+                    size: 22,
+                  ),
+                  title: Text(categories[index].name),
+                  trailing: categories[index].isDefault
+                      ? const Text(
+                          '기본',
+                          style: TextStyle(
+                            color: QuestTheme.muted,
+                            fontSize: 12,
+                          ),
+                        )
+                      : PopupMenuButton<String>(
+                          tooltip: '${categories[index].name} 관리',
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              showCategoryDialog(
+                                context,
+                                category: categories[index],
+                              );
+                            } else if (value == 'delete') {
+                              confirmDeleteCategory(context, categories[index]);
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'edit', child: Text('수정')),
+                            PopupMenuItem(value: 'delete', child: Text('삭제')),
+                          ],
                         ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('삭제'),
-                        ),
-                      ],
-                    ),
-            );
-          }),
-        ],
-      ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.history_rounded, size: 16, color: QuestTheme.muted),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '퀘스트를 바꿔도 지난날의 기록은 그대로 보관돼요.',
+                style: TextStyle(
+                  color: QuestTheme.muted,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

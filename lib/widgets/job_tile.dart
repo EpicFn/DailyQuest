@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/quest_job.dart';
+import 'quest_widgets.dart';
 
 class JobTile extends StatelessWidget {
   final QuestJob job;
@@ -21,34 +22,35 @@ class JobTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Switch(
-        value: job.isActive,
-        onChanged: onToggle,
-      ),
+    return QuestSurface(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      child: ListTile(
+        leading: Semantics(
+          label: '${job.name} 활성화',
+          child: Switch(value: job.isActive, onChanged: onToggle),
+        ),
 
-      title: Text(job.name),
+        title: Text(job.name),
 
-      subtitle: Text(categoryName),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 7),
+          child: CategoryBadge(categoryName),
+        ),
 
-      trailing: PopupMenuButton<String>(
-        onSelected: (value) {
-          if (value == 'edit') {
-            onEdit();
-          } else if (value == 'delete') {
-            onDelete();
-          }
-        },
-        itemBuilder: (context) => const [
-          PopupMenuItem(
-            value: 'edit',
-            child: Text('수정'),
-          ),
-          PopupMenuItem(
-            value: 'delete',
-            child: Text('삭제'),
-          ),
-        ],
+        trailing: PopupMenuButton<String>(
+          tooltip: '${job.name} 관리',
+          onSelected: (value) {
+            if (value == 'edit') {
+              onEdit();
+            } else if (value == 'delete') {
+              onDelete();
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(value: 'edit', child: Text('수정')),
+            PopupMenuItem(value: 'delete', child: Text('삭제')),
+          ],
+        ),
       ),
     );
   }

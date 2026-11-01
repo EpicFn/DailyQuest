@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:daily_quest/services/database_service.dart';
@@ -189,6 +188,54 @@ void main() {
       final changed = await db.ensureDailyJobsSynced();
 
       expect(changed, true);
+    });
+  });
+
+  group('카테고리 변경과 이력 보존', () {
+    test('이름 변경은 오늘만 반영하고 완료 상태와 과거 이름을 보존한다', () async {
+      await db.addCategory('취미');
+      final category = (await db.getCategories()).last;
+      await db.addJob('그림 그리기', category.id);
+      final job = (await db.getJobs()).single;
+      await db.setTodayCompleted(job.id, true);
+      currentDate = DateTime(2026, 10, 31);
+      await db.setTodayCompleted(job.id, true);
+
+      await db.updateCategory(category.id, '창작');
+
+      final today = (await db.getTodayJobs()).single;
+      expect(today.categoryName, '창작');
+      expect(today.isCompleted, true);
+      final past = (await db.getDailyJobsForDate(DateTime(2026, 10, 30)))
+          .single;
+      expect(past.categoryName, '취미');
+      expect(past.isCompleted, true);
+    });
+
+    test('미실행 날짜는 기존 분류로 채우고 삭제 당일만 기타로 이동한다', () async {
+      await db.addCategory('취미');
+      final category = (await db.getCategories()).last;
+      await db.addJob('그림 그리기', category.id);
+      currentDate = DateTime(2026, 11, 2);
+      await db.deleteCategory(category.id);
+
+      expect((await db.getJobs()).single.categoryId, 4);
+      expect((await db.getTodayJobs()).single.categoryName, '기타');
+      for (final day in [
+        DateTime(2026, 10, 30),
+        DateTime(2026, 10, 31),
+        DateTime(2026, 11, 1),
+      ]) {
+        expect((await db.getDailyJobsForDate(day)).single.categoryName, '취미');
+      }
+    });
+
+    test('기본 카테고리는 수정 및 삭제할 수 없다', () async {
+      await db.addJob('물 마시기', 2);
+      await db.updateCategory(2, '변경');
+      await db.deleteCategory(2);
+      expect((await db.getCategories()).length, 4);
+      expect((await db.getTodayJobs()).single.categoryName, '건강');
     });
   });
 }

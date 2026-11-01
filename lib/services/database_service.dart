@@ -382,6 +382,9 @@ class DatabaseService {
       where: 'id = ? AND is_default = 0',
       whereArgs: [id],
     );
+
+    _dailyJobsDirty = true;
+    await ensureDailyJobsSynced();
   }
 
   Future<void> deleteCategory(int id) async {
@@ -407,6 +410,9 @@ class DatabaseService {
         whereArgs: [id],
       );
     });
+
+    _dailyJobsDirty = true;
+    await ensureDailyJobsSynced();
   }
 
   // --------------------

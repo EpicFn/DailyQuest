@@ -1,17 +1,47 @@
-# daily_quest
+# Daily Quest
 
-A new Flutter project.
+Daily Quest는 매일 반복할 일을 관리하고, 오늘의 완료 상태와 날짜별 달성률을 기록하는 오프라인 Flutter 앱입니다. 서버나 로그인 없이 SQLite에 데이터를 저장합니다.
 
-## Getting Started
+## 구현된 기능
 
-This project is a starting point for a Flutter application.
+- **Today:** 오늘의 활성 Job 목록, 완료 체크, 완료 개수와 진행률 표시
+- **Calendar:** 월별 달성률 표시와 선택한 날짜의 Job 기록 조회
+- **Manage:** Job 추가·수정·삭제·활성화, 사용자 Category 추가·수정·삭제
+- **기본 Category:** 생활, 건강, 학습, 기타 제공 및 보호
+- **로컬 저장:** `sqflite` 기반 Job, Category, 날짜별 Job 스냅샷과 완료 상태 저장
+- **기록 보존:** 이미 생성된 과거 날짜의 Job 이름·Category·완료 상태는 현재 설정을 수정하거나 삭제해도 유지
+- **날짜 동기화:** 앱을 실행하지 않은 날짜의 기록을 다음 실행 시 보충
+- **게임형 UI:** 보라색 테마, 오늘의 달성률 카드, 완료 피드백과 날짜별 기록 카드
+- **개발용 샘플:** 디버그 모드에서 최근 90일의 샘플 기록 생성 및 전체 초기화
 
-A few resources to get you started if this is your first Flutter project:
+## 구조
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- 상태 관리: Flutter `setState`
+- 데이터베이스: SQLite (`sqflite`)
+- 달력: `table_calendar`
+- 주요 화면: Today / Calendar / Manage
+- 서버 및 인증: 사용하지 않음
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 로컬 검증
+
+```powershell
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+## 개발용 샘플 데이터
+
+`flutter run`으로 실행한 뒤 상단의 실험실 아이콘에서 **90일 샘플 데이터 생성**을 선택합니다. 기본 카테고리 4개, 사용자 카테고리 1개, 현재 퀘스트 7개(활성 6개), 오늘을 포함한 90일의 기록을 생성합니다. 과거 이름·카테고리 변경, 삭제·비활성화된 퀘스트와 다양한 달성률을 확인할 수 있습니다.
+
+**샘플 생성은 기존 DB의 모든 기록을 교체합니다.** 확인 대화상자에서 `삭제 후 생성`을 선택해야 실행됩니다. **전체 데이터 초기화**도 직접 입력한 데이터를 포함한 모든 기록을 삭제하고 기본 카테고리만 남깁니다. 두 작업 모두 트랜잭션으로 처리하며 자동 실행하지 않습니다. 릴리스·프로파일 모드에서는 개발 메뉴가 숨겨지고 서비스 실행도 차단됩니다.
+
+## 검증 범위
+
+- DB 테스트: 날짜 변경, 누락 날짜 보충, Job·Category 수정 및 삭제 후 과거 기록 보존
+- 샘플 테스트: 90일 범위, 달성률, 삭제된 퀘스트 ID 보존, 반복 생성·초기화, DB 재연결
+- UI 테스트: 완료 체크, 320px 화면과 1.5배 글자 크기, 탭 전환·퀘스트 입력, 개발 메뉴 취소
+
+APK 경로는 `build/app/outputs/flutter-apk/app-release.apk`입니다. 현재 Android 설정은 릴리스 빌드에도 개발용 서명을 사용하므로 스토어 배포 전 별도 서명 설정이 필요합니다.
+
+실제 기기의 장기 사용, 백그라운드 복귀 및 자정 전환은 추가 수동 검증 대상입니다.
