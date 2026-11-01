@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../theme/quest_theme.dart';
 import '../widgets/quest_widgets.dart';
+import '../widgets/month_picker_dialog.dart';
 
 import '../models/daily_job.dart';
 import '../services/database_service.dart';
@@ -27,6 +28,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
+  final _firstDay = DateTime(2020, 1, 1);
+  DateTime get _lastDay => DateTime.now().add(const Duration(days: 365));
 
   // 달력의 월 번호와 바깥 목록의 스크롤 픽셀이 같은 키로 저장되지 않도록 분리한다.
   // 샘플 생성 등으로 화면이 재생성되면 이 저장소도 초기화되어 오늘부터 표시한다.
@@ -114,6 +117,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   // 월 변경
+  Future<void> _showMonthPicker(DateTime month) async {
+    final selectedMonth = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => MonthPickerDialog(
+        initialMonth: month,
+        firstDay: _firstDay,
+        lastDay: _lastDay,
+      ),
+    );
+    if (!mounted || selectedMonth == null) return;
+    if (selectedMonth.year == _focusedDay.year &&
+        selectedMonth.month == _focusedDay.month) {
+      return;
+    }
+    _onPageChanged(selectedMonth);
+  }
+
   void _onPageChanged(DateTime focusedDay) {
     setState(() {
       _focusedDay = focusedDay;
@@ -201,8 +221,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       child: TableCalendar(
                         key: const PageStorageKey('calendar-month'),
                         locale: 'ko_KR',
-                        firstDay: DateTime(2020, 1, 1),
-                        lastDay: DateTime.now().add(const Duration(days: 365)),
+                        firstDay: _firstDay,
+                        lastDay: _lastDay,
                         focusedDay: _focusedDay,
                         selectedDayPredicate: (day) =>
                             isSameDay(_selectedDay, day),
@@ -243,6 +263,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           outsideDaysVisible: false,
                         ),
                         calendarBuilders: CalendarBuilders(
+                          headerTitleBuilder: (context, day) => Tooltip(
+                            message: '연월 선택',
+                            child: TextButton(
+                              key: const ValueKey('calendar-month-picker'),
+                              onPressed: () => _showMonthPicker(day),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      DateFormat(
+                                        'yyyy년 M월',
+                                        'ko_KR',
+                                      ).format(day),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.expand_more_rounded,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                           defaultBuilder: (context, day, focusedDay) =>
                               _buildDayCell(day),
                           todayBuilder: (context, day, focusedDay) =>
