@@ -76,7 +76,7 @@ class TodayScreen extends StatelessWidget {
                         SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            'DAILY QUEST',
+                            '데일리퀘스트',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,

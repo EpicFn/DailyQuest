@@ -331,7 +331,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'DAILY QUEST',
+                    '데일리퀘스트',
                     style: TextStyle(
                       fontSize: 10,
                       letterSpacing: 2,
