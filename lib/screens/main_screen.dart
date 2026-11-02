@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -11,11 +13,13 @@ import 'manage_screen.dart';
 
 import '../services/database_service.dart';
 import '../services/dummy_data_service.dart';
+import '../services/backup_file_service.dart';
 import '../theme/quest_theme.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key, this.databaseService});
+  const MainScreen({super.key, this.databaseService, this.backupFileService});
   final DatabaseService? databaseService;
+  final BackupFileService? backupFileService;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -28,6 +32,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   List<QuestCategory> categories = [];
 
   bool loading = true;
+  bool _busy = false;
+  bool _loadFailed = false;
+  bool _foreground = true;
+  String? _loadedDate;
+  Timer? _dailyTimer;
 
   int selectedIndex = 0;
 
@@ -43,7 +52,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
     WidgetsBinding.instance.addObserver(this);
 
-    loadData();
+    _runAction(loadData);
+    _scheduleDailyCheck();
   }
 
   // --------------------
@@ -51,6 +61,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   // --------------------
 
   Future<void> loadData() async {
+    final requestedDate = db.todayKey;
     final loadedCategories = await db.getCategories();
     final loadedJobs = await db.getJobs();
     final loadedTodayJobs = await db.getTodayJobs();
@@ -62,6 +73,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       jobs = loadedJobs;
       todayJobs = loadedTodayJobs;
       loading = false;
+      _loadFailed = false;
+      _loadedDate = requestedDate;
       calendarRefreshToken++;
     });
   }
@@ -72,21 +85,68 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !loading) {
+    _foreground = state == AppLifecycleState.resumed;
+    _dailyTimer?.cancel();
+    if (_foreground) {
       checkDailySync();
+      _scheduleDailyCheck();
     }
   }
 
   Future<void> checkDailySync() async {
-    final synced = await db.ensureDailyJobsSynced();
+    if (_busy || loading || !mounted) return;
+    await _runAction(() async {
+      final synced = await db.ensureDailyJobsSynced();
+      if (synced || _loadedDate != db.todayKey) await loadData();
+    });
+  }
 
-    if (synced && mounted) {
-      await loadData();
+  void _scheduleDailyCheck() {
+    _dailyTimer?.cancel();
+    if (!mounted || !_foreground) return;
+    final now = db.currentTime;
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    final untilMidnight = midnight.difference(now);
+    // Re-evaluate the clock at least once a minute, including manual time changes.
+    final delay = untilMidnight < const Duration(minutes: 1)
+        ? untilMidnight
+        : const Duration(minutes: 1);
+    _dailyTimer = Timer(delay, () async {
+      await checkDailySync();
+      _scheduleDailyCheck();
+    });
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_busy || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      if (loading) {
+        setState(() {
+          loading = false;
+          _loadFailed = true;
+        });
+      }
+      _message(
+        error is FormatException ? error.message : '작업을 완료하지 못했어요. 다시 시도해 주세요.',
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   void dispose() {
+    _dailyTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -95,60 +155,105 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   // Job 관리
   // --------------------
 
-  Future<void> addJob(String name, int categoryId) async {
+  Future<void> addJob(String name, int categoryId) => _runAction(() async {
     await db.addJob(name, categoryId);
     await loadData();
-  }
+  });
 
-  Future<void> updateJob(int id, String name, int categoryId) async {
-    await db.updateJob(id, name, categoryId);
-    await loadData();
-  }
+  Future<void> updateJob(int id, String name, int categoryId) =>
+      _runAction(() async {
+        await db.updateJob(id, name, categoryId);
+        await loadData();
+      });
 
-  Future<void> deleteJob(int id) async {
+  Future<void> deleteJob(int id) => _runAction(() async {
     await db.deleteJob(id);
     await loadData();
-  }
+  });
 
-  Future<void> toggleJob(int id, bool isActive) async {
+  Future<void> toggleJob(int id, bool isActive) => _runAction(() async {
     await db.toggleJob(id, isActive);
     await loadData();
-  }
+  });
 
   // --------------------
   // Category 관리
   // --------------------
 
-  Future<void> addCategory(String name) async {
+  Future<void> addCategory(String name) => _runAction(() async {
     await db.addCategory(name);
     await loadData();
-  }
+  });
 
-  Future<void> updateCategory(int id, String name) async {
+  Future<void> updateCategory(int id, String name) => _runAction(() async {
     await db.updateCategory(id, name);
     await loadData();
-  }
+  });
 
-  Future<void> deleteCategory(int id) async {
+  Future<void> deleteCategory(int id) => _runAction(() async {
     await db.deleteCategory(id);
     await loadData();
-  }
+  });
 
   // --------------------
   // 토글
   // --------------------
 
-  Future<void> toggleCompleted(int jobId, bool completed) async {
-    await db.setTodayCompleted(jobId, completed);
+  Future<void> toggleCompleted(
+    int jobId,
+    bool completed,
+    String expectedDate,
+  ) => _runAction(() async {
+    final saved = await db.setTodayCompleted(
+      jobId,
+      completed,
+      expectedDate: expectedDate,
+    );
     await loadData();
-  }
+    if (!saved) _message('날짜가 바뀌어 오늘의 퀘스트를 새로 불러왔어요.');
+  });
+
+  Future<void> _backupAction(String action) => _runAction(() async {
+    final files = widget.backupFileService ?? BackupFileService();
+    if (action == 'export') {
+      final content = await db.exportBackup();
+      if (await files.save(content)) _message('백업 파일을 저장했어요.');
+      return;
+    }
+    final backup = await files.pick();
+    if (backup == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('백업을 복원할까요?'),
+        content: Text(
+          '${backup.lastDate}까지의 기록\n퀘스트 ${backup.rows('jobs').length}개 · 일별 항목 ${backup.rows('daily_jobs').length}개\n\n현재 퀘스트, 카테고리와 모든 기록을 이 백업으로 교체합니다. 현재 기록이 필요하면 먼저 백업해 주세요.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('교체하고 복원'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => loading = true);
+    await db.restoreBackup(backup);
+    await loadData();
+    _message('백업을 복원했어요.');
+  });
 
   // --------------------
   // 화면 빌드
   // --------------------
 
   Future<void> showDeveloperAction(String action) async {
-    if (!kDebugMode || loading) return;
+    if (!kDebugMode || loading || _busy) return;
     final generate = action == 'sample';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -172,7 +277,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => loading = true);
+    setState(() {
+      loading = true;
+      _busy = true;
+    });
     try {
       final dummy = DummyDataService(databaseService: db);
       if (generate) {
@@ -193,11 +301,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('데이터 작업을 완료하지 못했어요. 다시 시도해 주세요.')),
       );
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final displayedJobs = todayJobs;
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -242,10 +353,24 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: '백업 및 복원',
+            enabled: !loading && !_busy && !_loadFailed,
+            icon: const Icon(Icons.save_outlined),
+            onSelected: _backupAction,
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                enabled: false,
+                child: Text('백업 파일에는 기록이 그대로 담깁니다.'),
+              ),
+              PopupMenuItem(value: 'export', child: Text('백업 파일 저장')),
+              PopupMenuItem(value: 'import', child: Text('백업 파일 복원')),
+            ],
+          ),
           if (kDebugMode)
             PopupMenuButton<String>(
               tooltip: '개발용 데이터',
-              enabled: !loading,
+              enabled: !loading && !_busy,
               icon: const Icon(Icons.science_outlined, color: QuestTheme.muted),
               onSelected: showDeveloperAction,
               itemBuilder: (context) => const [
@@ -259,36 +384,52 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              top: false,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 680),
-                  child: IndexedStack(
-                    index: selectedIndex,
-                    children: [
-                      TodayScreen(
-                        jobs: todayJobs,
-                        categories: categories,
-                        onToggleCompleted: toggleCompleted,
-                        onManage: () => setState(() => selectedIndex = 2),
-                      ),
-                      CalendarScreen(
-                        refreshToken: calendarRefreshToken,
-                        databaseService: db,
-                      ),
-                      ManageScreen(
-                        jobs: jobs,
-                        categories: categories,
-                        onAddJob: addJob,
-                        onUpdateJob: updateJob,
-                        onDeleteJob: deleteJob,
-                        onToggleJob: toggleJob,
-                        onAddCategory: addCategory,
-                        onUpdateCategory: updateCategory,
-                        onDeleteCategory: deleteCategory,
-                      ),
-                    ],
+          : _loadFailed
+          ? Center(
+              child: FilledButton(
+                onPressed: () => _runAction(loadData),
+                child: const Text('다시 불러오기'),
+              ),
+            )
+          : AbsorbPointer(
+              absorbing: _busy,
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 680),
+                    child: IndexedStack(
+                      index: selectedIndex,
+                      children: [
+                        TodayScreen(
+                          jobs: todayJobs,
+                          categories: categories,
+                          onToggleCompleted: (id, completed) => toggleCompleted(
+                            id,
+                            completed,
+                            displayedJobs
+                                .firstWhere((job) => job.jobId == id)
+                                .date,
+                          ),
+                          onManage: () => setState(() => selectedIndex = 2),
+                        ),
+                        CalendarScreen(
+                          refreshToken: calendarRefreshToken,
+                          databaseService: db,
+                        ),
+                        ManageScreen(
+                          jobs: jobs,
+                          categories: categories,
+                          onAddJob: addJob,
+                          onUpdateJob: updateJob,
+                          onDeleteJob: deleteJob,
+                          onToggleJob: toggleJob,
+                          onAddCategory: addCategory,
+                          onUpdateCategory: updateCategory,
+                          onDeleteCategory: deleteCategory,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

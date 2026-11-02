@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/category.dart';
 import '../models/quest_job.dart';
 import '../models/daily_job.dart';
+import '../models/quest_backup.dart';
 
 class DatabaseService {
   DatabaseService._() : _testDatabasePath = null, _now = DateTime.now;
@@ -23,6 +26,10 @@ class DatabaseService {
 
   String? _lastSyncedDate;
   bool _dailyJobsDirty = true;
+  Future<bool>? _pendingSync;
+
+  DateTime get currentTime => _now();
+  String get todayKey => _dateKey(_now());
 
   // --------------------
   // DB 연결
@@ -109,6 +116,19 @@ class DatabaseService {
   // --------------------
 
   Future<bool> ensureDailyJobsSynced() async {
+    while (_pendingSync != null) {
+      await _pendingSync;
+    }
+    final pending = _syncIfNeeded();
+    _pendingSync = pending;
+    try {
+      return await pending;
+    } finally {
+      if (identical(_pendingSync, pending)) _pendingSync = null;
+    }
+  }
+
+  Future<bool> _syncIfNeeded() async {
     final today = _dateKey(_now());
 
     // 이미 오늘 동기화했고 변경 사항도 없으면 생략
@@ -255,18 +275,88 @@ class DatabaseService {
     }).toList();
   }
 
-  Future<void> setTodayCompleted(int jobId, bool completed) async {
+  Future<bool> setTodayCompleted(
+    int jobId,
+    bool completed, {
+    String? expectedDate,
+  }) async {
     await ensureDailyJobsSynced();
 
     final db = await database;
     final today = _dateKey(_now());
 
-    await db.update(
+    // A tap from yesterday's still-visible UI must never change today's row.
+    if (expectedDate != null && expectedDate != today) return false;
+
+    final count = await db.update(
       'daily_jobs',
       {'is_completed': completed ? 1 : 0},
       where: 'date = ? AND job_id = ?',
       whereArgs: [today, jobId],
     );
+    return count > 0;
+  }
+
+  Future<String> exportBackup() async {
+    await ensureDailyJobsSynced();
+    final db = await database;
+    return db.transaction((txn) async {
+      final state = await txn.query('daily_state', where: 'id = 1');
+      final sequences = await txn.query('sqlite_sequence');
+      final content = jsonEncode({
+        'app': 'daily_quest',
+        'version': 1,
+        'last_date': state.single['last_date'],
+        'categories': await txn.query('categories', orderBy: 'id'),
+        'jobs': await txn.query('jobs', orderBy: 'id'),
+        'daily_jobs': await txn.query('daily_jobs', orderBy: 'date, job_id'),
+        'sequences': {
+          'jobs': 0,
+          'categories': 4,
+          for (final row in sequences)
+            if (row['name'] == 'jobs' || row['name'] == 'categories')
+              row['name'] as String: row['seq'],
+        },
+      });
+      QuestBackup.parse(content); // Never export a snapshot we cannot restore.
+      return content;
+    });
+  }
+
+  Future<void> restoreBackup(QuestBackup backup) async {
+    // Revalidate immediately before mutation, including mutable nested data.
+    backup = QuestBackup.parse(jsonEncode(backup.data));
+    if (backup.lastDate.compareTo(todayKey) > 0) {
+      throw const FormatException('미래 날짜의 백업입니다. 휴대전화 날짜를 확인해 주세요.');
+    }
+    if (_pendingSync != null) await _pendingSync;
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final table in ['daily_jobs', 'daily_state', 'jobs', 'categories']) {
+        await txn.delete(table);
+      }
+      final batch = txn.batch();
+      for (final table in ['categories', 'jobs', 'daily_jobs']) {
+        for (final row in backup.rows(table)) {
+          batch.insert(table, row);
+        }
+      }
+      batch.insert('daily_state', {'id': 1, 'last_date': backup.lastDate});
+      await batch.commit(noResult: true);
+      for (final table in ['jobs', 'categories']) {
+        await txn.delete(
+          'sqlite_sequence',
+          where: 'name = ?',
+          whereArgs: [table],
+        );
+        await txn.insert('sqlite_sequence', {
+          'name': table,
+          'seq': (backup.data['sequences'] as Map)[table],
+        });
+      }
+    });
+    _lastSyncedDate = null;
+    _dailyJobsDirty = true;
   }
 
   // --------------------
