@@ -49,3 +49,6 @@ app.*.map.json
 
 # plan
 daily_quest_plan.jsond  
+
+# local
+apk_key_info
